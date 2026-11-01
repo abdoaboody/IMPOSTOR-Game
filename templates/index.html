@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>المحتال — لعبة جماعية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lalezar&family=Tajawal:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="home">
+<main class="wrap narrow">
+  <header class="hero">
+    <div class="mask" aria-hidden="true"><span></span><span></span></div>
+    <h1>المحتال</h1>
+    <p>الكل يحمل نفس المهنة… إلا واحداً. ناقشوا، اسألوا، وكشفوه قبل أن يكشفكم.</p>
+  </header>
+
+  <section class="card" id="tabs">
+    <div class="seg" role="tablist">
+      <button class="on" data-tab="create" role="tab">إنشاء غرفة</button>
+      <button data-tab="join" role="tab">الانضمام لغرفة</button>
+    </div>
+
+    <div id="create" class="pane">
+      <label>اسمك<input id="c-name" maxlength="16" autocomplete="nickname" placeholder="مثلاً: سارة"></label>
+      <label>الحد الأقصى للاعبين <output id="c-out">6</output>
+        <input id="c-max" type="range" min="3" max="20" value="6"></label>
+      <button class="btn primary" id="c-go">أنشئ الغرفة</button>
+    </div>
+
+    <div id="join" class="pane" hidden>
+      <label>رمز الغرفة<input id="j-code" class="code-in" maxlength="8" autocapitalize="characters" dir="ltr" placeholder="ABCDE"></label>
+      <label>اسمك<input id="j-name" maxlength="16" autocomplete="nickname" placeholder="مثلاً: أحمد"></label>
+      <button class="btn primary" id="j-go">انضم</button>
+    </div>
+    <p class="err" id="err" role="alert"></p>
+  </section>
+</main>
+<a class="watermark" href="https://github.com/abdoayman45" target="_blank" rel="noopener noreferrer">Created by Aboody</a>
+<div id="toasts" aria-live="polite"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script src="/static/js/main.js"></script>
+<script>
+document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b));
+  $('#create').hidden = b.dataset.tab !== 'create';
+  $('#join').hidden = b.dataset.tab !== 'join';
+  $('#err').textContent = '';
+});
+$('#c-max').oninput = e => $('#c-out').textContent = e.target.value;
+const pre = new URLSearchParams(location.search).get('code');
+if (pre) { $('#j-code').value = pre.toUpperCase(); document.querySelector('[data-tab=join]').click(); }
+
+async function go(ev, data, btn) {
+  btn.disabled = true; $('#err').textContent = '';
+  const r = await emit(ev, data);
+  if (!r.ok) { $('#err').textContent = r.error; btn.disabled = false; return; }
+  store.set(r.code, r.token);
+  location.href = '/room/' + r.code;
+}
+$('#c-go').onclick = e => go('create', {name: $('#c-name').value, max_players: $('#c-max').value}, e.target);
+$('#j-go').onclick = e => go('join', {code: $('#j-code').value, name: $('#j-name').value}, e.target);
+</script>
+</body>
+</html>
