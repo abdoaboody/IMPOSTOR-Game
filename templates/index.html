@@ -31,7 +31,7 @@
     </div>
 
     <div id="create" class="pane">
-      <label>اسمك<input id="c-name" maxlength="16" autocomplete="nickname" placeholder="مثلاً: سارة"></label>
+      <label>اسمك<input id="c-name" maxlength="16" autocomplete="nickname" placeholder="مثلاً: حسين"></label>
       <label>الحد الأقصى للاعبين <output id="c-out">6</output>
         <input id="c-max" type="range" min="3" max="20" value="6"></label>
       <button class="btn primary" id="c-go">أنشئ الغرفة</button>
@@ -39,16 +39,16 @@
 
     <div id="join" class="pane" hidden>
       <label>رمز الغرفة<input id="j-code" class="code-in" maxlength="8" autocapitalize="characters" dir="ltr" placeholder="ABCDE"></label>
-      <label>اسمك<input id="j-name" maxlength="16" autocomplete="nickname" placeholder="مثلاً: أحمد"></label>
+      <label>اسمك<input id="j-name" maxlength="16" autocomplete="nickname" placeholder="مثلاً: عبدو"></label>
       <button class="btn primary" id="j-go">انضم</button>
     </div>
     <p class="err" id="err" role="alert"></p>
   </section>
 </main>
 
-
+<!--  
 <a class="watermark" href="https://github.com/abdoaboody" target="_blank" rel="noopener noreferrer">Created by Aboody and AMAADIO </a>
-
+-->
 
 <div id="toasts" aria-live="polite"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
