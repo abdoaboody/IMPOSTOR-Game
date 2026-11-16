@@ -1,11 +1,13 @@
 """Socket.IO event handlers. All authority checks live in game_logic.Room."""
-import random
+import os
 
 from flask import request
 from flask_socketio import join_room as sio_join, leave_room as sio_leave
 
-from game_logic import GameError
-from professions import QUESTIONS
+from game_logic import ACTIVE_PHASES, GameError
+
+# Seconds the game waits for a disconnected impostor before everyone returns to the lobby.
+IMPOSTOR_GRACE = float(os.environ.get("IMPOSTOR_GRACE", 30))
 
 
 def register(socketio, mgr):
@@ -27,6 +29,24 @@ def register(socketio, mgr):
                 except GameError as e:
                     return {"ok": False, "error": str(e)}
         return wrapper
+
+    # ------------------------------------------------ impostor-loss watchdog
+    def watch_impostor(code, pid, stamp):
+        socketio.sleep(IMPOSTOR_GRACE)
+        with mgr.lock:
+            room = mgr.rooms.get(code)
+            p = room.players.get(pid) if room else None
+            if not p or p.connected or p.dropped_at != stamp:
+                return                            # came back (or dropped again: newer watch owns it)
+            name = room.lost_impostor_reset(pid)
+            if name is None:
+                return
+            socketio.emit("impostor_lost", {"name": name}, to=room.code)
+            broadcast(room)
+
+    def maybe_watch(room, p):
+        if room.phase in ACTIVE_PHASES and p.pid == room.impostor_pid and not p.connected:
+            socketio.start_background_task(watch_impostor, room.code, p.pid, p.dropped_at)
 
     @socketio.on("create")
     @safe
@@ -61,6 +81,7 @@ def register(socketio, mgr):
                 room, p = res
                 notice(room, f"انقطع اتصال {p.name}", "warn")
                 broadcast(room)
+                maybe_watch(room, p)
 
     @socketio.on("leave")
     @safe
@@ -71,6 +92,28 @@ def register(socketio, mgr):
         if room:
             notice(room, f"غادر {p.name} الغرفة", "warn")
             broadcast(room)
+            maybe_watch(room, p)
+        return {"ok": True}
+
+    @socketio.on("kick")
+    @safe
+    def kick(data):
+        room, p = mgr.lookup(request.sid)
+        target = room.kick(p.pid, data.get("target"))
+        if target.sid:
+            mgr.sids.pop(target.sid, None)
+            socketio.emit("kicked", {}, to=target.sid)
+            sio_leave(room.code, sid=target.sid)
+        notice(room, f"أخرج المضيف {target.name} من الغرفة", "warn")
+        broadcast(room)
+        return {"ok": True}
+
+    @socketio.on("settings")
+    @safe
+    def settings(data):
+        room, p = mgr.lookup(request.sid)
+        room.set_settings(p.pid, data.get("category"), data.get("mode"), data.get("hints"))
+        broadcast(room)
         return {"ok": True}
 
     def action(event, method=None):
@@ -85,17 +128,19 @@ def register(socketio, mgr):
         return handler
 
     action("start_game"); action("start_voting"); action("close_voting")
-    action("new_vote"); action("reveal"); action("new_round"); action("to_lobby")
+    action("back_to_game"); action("reveal"); action("new_round"); action("to_lobby")
     action("seen", "mark_seen"); action("ready", "set_ready"); action("vote", "cast_vote")
 
     @socketio.on("request_role")
     @safe
     def request_role(data):
         room, p = mgr.lookup(request.sid)
-        return {"ok": True, "job": room.role_for(p.pid)}   # ack goes only to the caller
+        r = room.role_for(p.pid)                            # ack goes only to the caller
+        return {"ok": True, "job": r["word"], "impostor": r["impostor"], "hint": r["hint"],
+                "category": room.category}
 
     @socketio.on("question")
     @safe
     def question(data):
-        mgr.lookup(request.sid)
-        return {"ok": True, "question": random.choice(QUESTIONS)}
+        room, p = mgr.lookup(request.sid)
+        return {"ok": True, "question": room.next_question(p.pid)}

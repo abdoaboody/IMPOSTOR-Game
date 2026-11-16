@@ -91,3 +91,38 @@ def test_unbound_socket_is_rejected(env):
     stranger = sio.test_client(app)
     for ev in ("start_game", "request_role", "reveal", "vote", "close_voting"):
         assert not stranger.emit(ev, {"target": "x"}, callback=True)["ok"]
+
+
+def test_kick_and_settings_events(env):
+    app, code, cs = setup_room(env, 4)
+    ids = [last_state(c)["me"]["id"] for c in cs]
+    assert not cs[1].emit("kick", {"target": ids[2]}, callback=True)["ok"]
+    assert cs[0].emit("kick", {"target": ids[3]}, callback=True)["ok"]
+    assert any(e["name"] == "kicked" for e in cs[3].get_received())
+    assert not cs[3].emit("ready", callback=True)["ok"]      # kicked socket is unbound
+    assert cs[0].emit("settings", {"category": "random", "mode": "blind", "hints": True}, callback=True)["ok"]
+    st = last_state(cs[1])
+    assert st["settings"] == {"category": "random", "mode": "blind", "hints": True}
+    assert len(st["players"]) == 3
+
+
+def test_impostor_disconnect_returns_everyone_to_lobby(env, monkeypatch):
+    import socket_events
+    monkeypatch.setattr(socket_events, "IMPOSTOR_GRACE", 0.2)
+    app, sio = env
+    app, sio = create_app()                                   # re-register with the short grace
+    host = sio.test_client(app)
+    code = host.emit("create", {"name": "Host", "max_players": 6}, callback=True)["code"]
+    cs = [host] + [sio.test_client(app) for _ in range(3)]
+    for i, c in enumerate(cs[1:], 1):
+        assert c.emit("join", {"code": code, "name": f"P{i}"}, callback=True)["ok"]
+    assert host.emit("start_game", callback=True)["ok"]
+    room = app.mgr.rooms[code]
+    imp_client = next(c for c in cs if last_state(c)["me"]["id"] == room.impostor_pid)
+    imp_name = room.players[room.impostor_pid].name
+    imp_client.disconnect()
+    others = [c for c in cs if c is not imp_client]
+    import time; time.sleep(0.6)
+    got = [e for e in others[0].get_received() if e["name"] == "impostor_lost"]
+    assert got and got[0]["args"][0]["name"] == imp_name
+    assert room.phase == "lobby" and room.impostor_pid is None

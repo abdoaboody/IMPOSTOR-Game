@@ -57,17 +57,10 @@
     </div>
 
     <div id="create" class="pane">
-<<<<<<< HEAD
-      <label>اسمك<input id="c-name" maxlength="16" autocomplete="nickname" placeholder="مثلاً: جو"></label>
-      <label>الحد الأقصى للاعبين <output id="c-out">6</output>
-        <input id="c-max" type="range" min="3" max="20" value="6"></label>
-      <button class="btn primary" id="c-go">أنشئ الغرفة</button>
-=======
       <label><span data-i18n="label_name">اسمك</span><input id="c-name" maxlength="16" autocomplete="nickname" placeholder="مثلاً: جو" data-i18n-ph="ph_name_create" data-testid="create-name-input"></label>
       <label><span data-i18n="label_max">الحد الأقصى للاعبين</span> <output id="c-out">6</output>
         <input id="c-max" type="range" min="3" max="20" value="6" data-testid="max-players-range"></label>
       <button class="btn primary" id="c-go" data-testid="submit-room-btn" data-i18n="btn_create">أنشئ الغرفة</button>
->>>>>>> 5a91812 ( Nuovo Design)
     </div>
 
     <div id="join" class="pane" hidden>
@@ -113,6 +106,10 @@ $('#c-max').oninput = e => $('#c-out').textContent = e.target.value;
 $('#langbtn').addEventListener('click', () => I18N.toggle());
 const pre = new URLSearchParams(location.search).get('code');
 if (pre) { $('#j-code').value = pre.toUpperCase(); document.querySelector('[data-tab=join]').click(); }
+if (new URLSearchParams(location.search).get('kicked')) {
+  $('#err').textContent = I18N.t('kicked_msg');
+  history.replaceState(null, '', '/');
+}
 
 async function go(ev, data, btn) {
   btn.disabled = true; $('#err').textContent = '';

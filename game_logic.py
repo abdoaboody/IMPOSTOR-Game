@@ -5,12 +5,15 @@ import time
 import uuid
 from dataclasses import dataclass
 
+from content import CATEGORIES, FOOD, QUESTIONS, RANDOM_THINGS
 from professions import PROFESSIONS
 
 MIN_PLAYERS = 3
 MAX_PLAYERS_LIMIT = 20
 MAX_NAME_LEN = 16
 ROLE_PHASES = ("reveal", "discussion", "voting", "tally", "final")
+ACTIVE_PHASES = ("reveal", "discussion", "voting", "tally")   # impostor-loss watch applies here
+MODES = ("decoy", "blind")     # decoy: impostor gets a different word; blind: impostor is told, no word
 
 
 class GameError(Exception):
@@ -27,6 +30,8 @@ class Player:
     seen: bool = False
     ready: bool = False
     vote: str | None = None
+    dropped_at: float = 0.0
+    q_pos: dict | None = None  # per-category position in the ordered question list
 
 
 class Room:
@@ -43,12 +48,13 @@ class Room:
         self.host_pid = None
         self.phase = "lobby"
         self.round_no = 0
+        self.category, self.mode, self.hints = "jobs", "decoy", False
         self.touched = time.time()
         self._reset_round()
 
     # ---------------------------------------------------------------- helpers
     def _reset_round(self):
-        self.main_job = self.impostor_job = self.impostor_pid = None
+        self.main_job = self.impostor_job = self.impostor_pid = self.hint = None
         self.suspect_pid = self.outcome = None
         self.tally = {}
         self.vote_round = 0
@@ -104,6 +110,7 @@ class Room:
         p = self.players.get(pid)
         if p:
             p.connected, p.sid = False, None
+            p.dropped_at = time.time()
             self.touched = time.time()
             self._autoadvance()
 
@@ -117,6 +124,65 @@ class Room:
             nxt = next(iter(self._connected()), None) or next(iter(self.players.values()), None)
             self.host_pid = nxt.pid if nxt else None
 
+    def _drop_absent(self):
+        for pid in [p.pid for p in self.players.values() if not p.connected]:
+            del self.players[pid]
+        if self.host_pid not in self.players:
+            nxt = next(iter(self._connected()), None) or next(iter(self.players.values()), None)
+            self.host_pid = nxt.pid if nxt else None
+
+    def kick(self, actor, target):
+        """Host removes a player while waiting in the lobby."""
+        self._require_host(actor)
+        self._require_phase("lobby")
+        if target == actor:
+            raise GameError("لا يمكنك إخراج نفسك.")
+        p = self.players.pop(target, None)
+        if not p:
+            raise GameError("اللاعب غير موجود.")
+        self.touched = time.time()
+        return p
+
+    def set_settings(self, actor, category=None, mode=None, hints=None):
+        self._require_host(actor)
+        self._require_phase("lobby")
+        if category is not None:
+            if category not in CATEGORIES:
+                raise GameError("قسم غير صالح.")
+            self.category = category
+        if mode is not None:
+            if mode not in MODES:
+                raise GameError("نوع لعب غير صالح.")
+            self.mode = mode
+        if hints is not None:
+            self.hints = bool(hints)
+
+    def hints_active(self):
+        return self.mode == "blind" and self.category == "random" and self.hints
+
+    def lost_impostor_reset(self, pid):
+        """Impostor dropped mid-round and never came back: everyone returns to the lobby."""
+        if self.phase not in ACTIVE_PHASES or pid != self.impostor_pid:
+            return None
+        p = self.players.get(pid)
+        if not p or p.connected:
+            return None
+        name = p.name
+        self._reset_round()
+        self._drop_absent()
+        self.phase = "lobby"
+        return name
+
+    def next_question(self, pid):
+        """Ordered (not random) yes/no questions for the round's category; wraps around."""
+        self._require_phase("discussion")
+        p = self.players[pid]
+        p.q_pos = p.q_pos or {}
+        qs = QUESTIONS[self.category]
+        i = p.q_pos.get(self.category, 0)
+        p.q_pos[self.category] = (i + 1) % len(qs)
+        return qs[i % len(qs)]
+
     def _autoadvance(self):
         if self.phase == "reveal" and all(p.seen for p in self._connected()):
             self.phase = "discussion"
@@ -128,21 +194,36 @@ class Room:
         self._begin_round()
 
     def _begin_round(self):
-        for pid in [p.pid for p in self.players.values() if not p.connected]:
-            del self.players[pid]            # drop absent players between rounds
+        self._drop_absent()                  # drop absent players between rounds
         if len(self.players) < MIN_PLAYERS:
             raise GameError(f"يلزم {MIN_PLAYERS} لاعبين متصلين على الأقل.")
         self._reset_round()
-        self.main_job, self.impostor_job = self.rng.sample(self.professions, 2)
+        hint = None
+        if self.category == "food":
+            self.main_job, self.impostor_job = self.rng.sample(FOOD, 2)
+        elif self.category == "random":
+            group = RANDOM_THINGS[self.rng.choice(sorted(RANDOM_THINGS))]   # both words share one kind
+            (self.main_job, hint), (self.impostor_job, _) = self.rng.sample(group, 2)
+        else:
+            self.main_job, self.impostor_job = self.rng.sample(self.professions, 2)
+        if self.mode == "blind":
+            self.impostor_job = None
+            self.hint = hint if self.hints_active() else None
         self.impostor_pid = self.rng.choice(list(self.players))
         self.round_no += 1
         self.vote_round = 1
         self.phase = "reveal"
 
     def role_for(self, pid):
-        """The ONLY place a profession leaves the server, and only to its owner."""
+        """The ONLY place a secret word leaves the server, and only to its owner.
+        decoy mode: the impostor just gets a different word (and is not told).
+        blind mode: the impostor is told, with no word (and a tiny hint if enabled)."""
         self._require_phase(*ROLE_PHASES)
-        return self.impostor_job if pid == self.impostor_pid else self.main_job
+        if pid != self.impostor_pid:
+            return {"word": self.main_job, "impostor": False, "hint": None}
+        if self.mode == "blind":
+            return {"word": None, "impostor": True, "hint": self.hint}
+        return {"word": self.impostor_job, "impostor": False, "hint": None}
 
     def mark_seen(self, pid):
         self._require_phase("reveal")
@@ -195,16 +276,17 @@ class Room:
             self.outcome, self.suspect_pid = "tie", None
         self.phase = "tally"
 
-    def new_vote(self, actor):
+    def back_to_game(self, actor):
+        """After a tie: return to the discussion; everyone gets ready again, then a fresh vote."""
         self._require_host(actor)
         self._require_phase("tally")
         if self.outcome != "tie":
             raise GameError("لا يوجد تعادل.")
         for p in self.players.values():
-            p.vote = None                      # nothing carries over
+            p.vote, p.ready = None, False      # nothing carries over
         self.tally, self.outcome = {}, None
         self.vote_round += 1
-        self.phase = "voting"
+        self.phase = "discussion"
 
     def reveal(self, actor):
         self._require_host(actor)
@@ -222,8 +304,7 @@ class Room:
         self._require_host(actor)
         self._require_phase("final")
         self._reset_round()
-        for pid in [p.pid for p in self.players.values() if not p.connected]:
-            del self.players[pid]
+        self._drop_absent()
         self.phase = "lobby"
 
     # ------------------------------------------------------------------ views
@@ -249,6 +330,7 @@ class Room:
             "can_start": len(self._connected()) >= MIN_PLAYERS,
             "all_ready": st == "discussion" and self.all_ready(),
             "all_voted": st == "voting" and self.all_voted(),
+            "settings": {"category": self.category, "mode": self.mode, "hints": self.hints},
         }
         if st == "tally":
             v["outcome"], v["tally"] = self.outcome, self.tally
@@ -262,5 +344,6 @@ class Room:
                 "suspect_id": self.suspect_pid,
                 "correct": self.suspect_pid == self.impostor_pid,
                 "tally": self.tally,
+                "category": self.category, "mode": self.mode,
             }
         return v

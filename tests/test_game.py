@@ -5,7 +5,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import pytest
 from game_logic import GameError, Room
-from professions import PROFESSIONS, QUESTIONS
+from content import CATEGORIES, QUESTIONS, RANDOM_THINGS, WORDS
+from professions import PROFESSIONS
 
 
 def make_room(n=5, seed=1):
@@ -30,8 +31,12 @@ def vote_all(r, ids, mapping):
 
 
 def test_content_lists():
-    assert len(set(PROFESSIONS)) >= 35 and len(QUESTIONS) >= 10
-    assert not any(p in q for q in QUESTIONS for p in PROFESSIONS)
+    assert len(set(PROFESSIONS)) >= 35
+    for cat in CATEGORIES:
+        qs = QUESTIONS[cat]
+        assert len(qs) > 100 and len(set(qs)) == len(qs)
+        assert all(q.startswith("هل") for q in qs)            # yes / no questions only
+        assert not any(w in q for q in qs for w in WORDS[cat])  # never names a secret word
 
 
 def test_roles_one_impostor_different_job():
@@ -39,7 +44,7 @@ def test_roles_one_impostor_different_job():
         r, ids = make_room(6, seed)
         r.start_game(ids[0])
         assert r.main_job != r.impostor_job
-        jobs = [r.role_for(i) for i in ids]
+        jobs = [r.role_for(i)["word"] for i in ids]
         assert jobs.count(r.impostor_job) == 1 and jobs.count(r.main_job) == 5
 
 
@@ -150,9 +155,15 @@ def test_tie_revote_resets_votes_until_unique():
     with pytest.raises(GameError):
         r.reveal(ids[0])                        # cannot reveal during a tie
     with pytest.raises(GameError):
-        r.new_vote(ids[1])
-    r.new_vote(ids[0])
-    assert all(p.vote is None for p in r.players.values()) and r.vote_round == 2
+        r.back_to_game(ids[1])
+    r.back_to_game(ids[0])                      # tie -> back to the discussion, not straight to a vote
+    assert r.phase == "discussion" and r.vote_round == 2
+    assert all(p.vote is None and not p.ready for p in r.players.values())
+    with pytest.raises(GameError):
+        r.start_voting(ids[0])                  # everyone must be ready again
+    for i in ids:
+        r.set_ready(i)
+    r.start_voting(ids[0])
     vote_all(r, ids, {ids[0]: ids[1], ids[1]: ids[0], ids[2]: ids[0], ids[3]: ids[0]})
     r.close_voting(ids[0])
     assert r.outcome == "suspect" and r.suspect_pid == ids[0]
@@ -197,3 +208,89 @@ def test_disconnect_and_reconnect_keep_identity():
     assert p.pid == ids[2] and r.role_for(ids[2]) == job_before
     with pytest.raises(GameError):
         r.reconnect("wrong", "x")
+
+
+def test_host_can_kick_only_in_lobby():
+    r, ids = make_room(4)
+    with pytest.raises(GameError):
+        r.kick(ids[1], ids[2])                  # non-host
+    with pytest.raises(GameError):
+        r.kick(ids[0], ids[0])                  # self
+    assert r.kick(ids[0], ids[3]).pid == ids[3] and ids[3] not in r.players
+    r.start_game(ids[0])
+    with pytest.raises(GameError):
+        r.kick(ids[0], ids[2])                  # game running
+
+
+def test_settings_host_lobby_only():
+    r, ids = make_room(3)
+    with pytest.raises(GameError):
+        r.set_settings(ids[1], "food")
+    with pytest.raises(GameError):
+        r.set_settings(ids[0], "sports")
+    r.set_settings(ids[0], "food", "blind", True)
+    assert (r.category, r.mode, r.hints) == ("food", "blind", True)
+    assert not r.hints_active()                 # hints only exist for random + blind
+    r.start_game(ids[0])
+    with pytest.raises(GameError):
+        r.set_settings(ids[0], "jobs")
+
+
+def test_food_and_random_decoy_words():
+    for seed in range(40):
+        r, ids = make_room(4, seed)
+        r.set_settings(ids[0], "food")
+        r.start_game(ids[0])
+        assert r.main_job in WORDS["food"] and r.impostor_job in WORDS["food"]
+        assert r.main_job != r.impostor_job
+        r, ids = make_room(4, seed)
+        r.set_settings(ids[0], "random")
+        r.start_game(ids[0])
+        groups = [g for g, items in RANDOM_THINGS.items() if r.main_job in [w for w, _ in items]]
+        assert r.impostor_job in [w for w, _ in RANDOM_THINGS[groups[0]]]   # same kind
+
+
+def test_blind_mode_and_hints():
+    r, ids = make_room(4, 3)
+    r.set_settings(ids[0], "random", "blind", False)
+    r.start_game(ids[0])
+    imp = r.role_for(r.impostor_pid)
+    assert imp == {"word": None, "impostor": True, "hint": None}
+    crew = [r.role_for(i) for i in ids if i != r.impostor_pid]
+    assert all(c["word"] == r.main_job and not c["impostor"] for c in crew)
+    r, ids = make_room(4, 3)
+    r.set_settings(ids[0], "random", "blind", True)
+    r.start_game(ids[0])
+    imp = r.role_for(r.impostor_pid)
+    assert imp["impostor"] and imp["word"] is None and imp["hint"]
+    assert imp["hint"] != r.main_job
+    r, ids = make_room(4, 3)
+    r.set_settings(ids[0], "jobs", "blind", True)  # hint switch ignored outside random
+    r.start_game(ids[0])
+    assert r.role_for(r.impostor_pid)["hint"] is None
+
+
+def test_questions_are_ordered_per_player_and_wrap():
+    r, ids = make_room(3)
+    r.set_settings(ids[0], "food")
+    r.start_game(ids[0])
+    for i in ids:
+        r.mark_seen(i)
+    qs = QUESTIONS["food"]
+    got = [r.next_question(ids[0]) for _ in range(len(qs) + 2)]
+    assert got[:len(qs)] == qs and got[len(qs):] == qs[:2]
+    assert r.next_question(ids[1]) == qs[0]     # each player keeps their own order
+
+
+def test_lost_impostor_resets_to_lobby():
+    r, ids = make_room(4)
+    r.start_game(ids[0])
+    imp = r.impostor_pid
+    other = next(i for i in ids if i != imp)
+    r.disconnect(other)
+    assert r.lost_impostor_reset(other) is None  # a normal player dropping changes nothing
+    r.disconnect(imp)
+    name = r.players[imp].name
+    assert r.lost_impostor_reset(imp) == name
+    assert r.phase == "lobby" and imp not in r.players and r.main_job is None
+    assert r.host_pid in r.players
