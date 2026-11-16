@@ -6,7 +6,12 @@ const socket = io();
 
 function emit(ev, data = {}) {
   return new Promise(res => socket.timeout(8000).emit(ev, data,
-    (err, r) => res(err ? {ok: false, error: window.I18N ? I18N.t('timeout_err') : 'انتهت مهلة الاتصال، حاول مجدداً.'} : r)));
+    (err, r) => {
+      if (err) return res({ok: false, error: I18N.t('timeout_err')});
+      // server errors carry an Italian translation: show the player's language
+      if (r && !r.ok && I18N.lang === 'it' && r.error_it) r = {...r, error: r.error_it};
+      res(r);
+    }));
 }
 
 const store = {

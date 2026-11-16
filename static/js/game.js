@@ -13,7 +13,7 @@ socket.on('connect', async () => {
   if (!r.ok) { store.del(CODE); S = null; renderJoin(r.error); }
 });
 socket.on('disconnect', () => $('#conn').hidden = false);
-socket.on('notice', n => toast(n.text, n.kind));
+socket.on('notice', n => toast(n.key ? t('n_' + n.key, {name: n.name}) : n.text, n.kind));
 socket.on('state', s => { S = s; render(); });
 socket.on('kicked', () => { store.del(CODE); location.href = '/?kicked=1'; });
 socket.on('impostor_lost', d => showModal(t('lost_title'), t('lost_text', {name: d.name})));
@@ -33,6 +33,7 @@ const PHASES = () => [
 ];
 const CATS = ['jobs', 'food', 'random'];
 const CAT_ICON = {jobs: '💼', food: '🍔', random: '🎲'};
+const loc = (ar, it) => (I18N.lang === 'it' && it ? it : ar);   // pick server content in the player's language
 const cat = () => (S && S.settings ? S.settings.category : 'jobs');
 const hue = n => [...n].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
 const avatar = n => `<span class="av" style="--h:${hue(n)}" data-testid="player-avatar">${esc([...n][0] || '?')}</span>`;
@@ -41,7 +42,7 @@ const btn = (act, label, {cls = 'primary', ok = true, id = '', tid = ''} = {}) =
 const chip = (on, yes, no) => `<span class="chip ${on ? 'yes' : ''}">${on ? yes : no}</span>`;
 const isHost = () => S.me.is_host;
 const connected = () => S.players.filter(p => p.connected);
-const nameOf = id => (S.players.find(p => p.id === id) || {name: '؟'}).name;
+const nameOf = id => (S.players.find(p => p.id === id) || {name: '?'}).name;
 
 function plist(status, {kick = false} = {}) {
   return `<ul class="plist" data-testid="player-list-container">${S.players.map(p => `
@@ -81,9 +82,9 @@ function secretCard() {
     const hide = btn('hide-role', S.phase === 'reveal' ? t('btn_hide_follow') : t('btn_hide'), {cls: 'ghost', tid: 'role-reveal-toggle-btn'});
     if (role.impostor) return `<div class="secret open imp" data-testid="role-reveal-card"><small>${esc(title)}</small>
       <strong data-testid="secret-word">${esc(t('you_impostor'))}</strong>
-      ${role.hint ? `<p class="hint" data-testid="impostor-hint">💡 ${esc(t('hint_is'))}: <b>${esc(role.hint)}</b></p>` : `<p class="muted">${esc(t('no_hint'))}</p>`}
+      ${role.hint ? `<p class="hint" data-testid="impostor-hint">💡 ${esc(t('hint_is'))}: <b>${esc(loc(role.hint, role.hint_it))}</b></p>` : `<p class="muted">${esc(t('no_hint'))}</p>`}
       ${hide}</div>`;
-    return `<div class="secret open" data-testid="role-reveal-card"><small>${esc(title)}</small><strong data-testid="secret-word">${esc(role.word)}</strong>${hide}</div>`;
+    return `<div class="secret open" data-testid="role-reveal-card"><small>${esc(title)}</small><strong data-testid="secret-word">${esc(loc(role.word, role.word_it))}</strong>${hide}</div>`;
   }
   return `<div class="secret" data-testid="role-reveal-card"><p>${esc(t('secret_warn'))}</p>${btn('reveal-role', t('btn_show'), {tid: 'role-reveal-toggle-btn'})}</div>`;
 }
@@ -112,7 +113,7 @@ const VIEWS = {
     return `<section class="card enter"><h2>${esc(t('disc_title'))}${S.vote_round > 1 ? ` <small class="muted">${esc(t('vote_round', {n: S.vote_round}))}</small>` : ''}</h2>
       <p class="muted">${esc(t('disc_hint'))}</p>
       ${secretCard()}
-      <div class="qbox" data-testid="discussion-questions-box">${question ? `<p class="q" data-testid="suggested-question">${esc(question)}</p>` : `<p class="muted">${esc(t('q_hint'))}</p>`}
+      <div class="qbox" data-testid="discussion-questions-box">${question ? `<p class="q" data-testid="suggested-question">${esc(loc(question.ar, question.it))}</p>` : `<p class="muted">${esc(t('q_hint'))}</p>`}
         ${btn('question', question ? t('btn_q2') : t('btn_q1'), {cls: 'ghost', tid: 'suggest-question-btn'})}</div>
       ${S.me.ready ? `<p class="ok">${esc(t('ready_ok'))}</p>` : btn('ready', t('btn_ready'), {tid: 'ready-btn'})}
       ${plist(p => chip(p.ready, t('ready_yes'), t('ready_no')))}
@@ -149,8 +150,8 @@ const VIEWS = {
     return `<section class="card enter center ${r.correct ? 'win' : 'lose'}" data-testid="results-summary-card">
       <h2>${r.correct ? esc(t('win_title')) : esc(t('lose_title'))}</h2>
       <p>${esc(t('r_suspect'))}: <b>${esc(nameOf(r.suspect_id))}</b> · ${esc(t('r_impostor'))}: <b>${esc(r.impostor_name)}</b></p>
-      <div class="jobs"><div><small>${esc(t('main_' + c))}</small><strong data-testid="result-main-word">${esc(r.main_job)}</strong></div>
-        <div class="bad"><small>${esc(t('imp_' + c))}</small><strong data-testid="result-impostor-word">${r.impostor_job ? esc(r.impostor_job) : esc(t('imp_no_word'))}</strong></div></div>
+      <div class="jobs"><div><small>${esc(t('main_' + c))}</small><strong data-testid="result-main-word">${esc(loc(r.main_job, r.main_job_it))}</strong></div>
+        <div class="bad"><small>${esc(t('imp_' + c))}</small><strong data-testid="result-impostor-word">${r.impostor_job ? esc(loc(r.impostor_job, r.impostor_job_it)) : esc(t('imp_no_word'))}</strong></div></div>
       ${isHost() ? `<div class="row">${btn('new_round', t('btn_new_round'), {tid: 'play-again-btn'})}${btn('to_lobby', t('btn_back'), {cls: 'ghost', tid: 'back-to-lobby-btn'})}</div>`
                  : `<p class="muted">${esc(t('wait_decision'))}</p>`}</section>`;
   },
@@ -204,10 +205,10 @@ const ACT = {
   },
   async 'reveal-role'() {
     const r = await call('request_role');
-    if (r.ok) { role = {word: r.job, impostor: !!r.impostor, hint: r.hint || null}; render(); }
+    if (r.ok) { role = {word: r.job, word_it: r.job_it, impostor: !!r.impostor, hint: r.hint || null, hint_it: r.hint_it}; render(); }
   },
   async 'hide-role'() { role = null; render(); if (S.phase === 'reveal') await call('seen'); },
-  async question() { const r = await call('question'); if (r.ok) { question = r.question; render(); } },
+  async question() { const r = await call('question'); if (r.ok) { question = {ar: r.question, it: r.question_it}; render(); } },
   async vote(id) { await call('vote', {target: id}); },
   async kick(id) { await call('kick', {target: id}); },
   async set(spec) {

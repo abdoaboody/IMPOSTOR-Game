@@ -294,3 +294,22 @@ def test_lost_impostor_resets_to_lobby():
     assert r.lost_impostor_reset(imp) == name
     assert r.phase == "lobby" and imp not in r.players and r.main_job is None
     assert r.host_pid in r.players
+
+
+def test_italian_content_complete_and_aligned():
+    from content_it import HINTS_IT, QUESTIONS_IT, WORDS_IT
+    for cat in CATEGORIES:
+        assert len(QUESTIONS_IT[cat]) == len(QUESTIONS[cat])
+        assert all(q.endswith("?") for q in QUESTIONS_IT[cat])
+        assert all(w in WORDS_IT for w in WORDS[cat])
+    assert all(h in HINTS_IT for g in RANDOM_THINGS.values() for _, h in g)
+
+
+def test_every_game_error_has_italian():
+    import ast, pathlib
+    root = pathlib.Path(__file__).resolve().parents[1]
+    for f in ("game_logic.py", "room_manager.py"):
+        tree = ast.parse((root / f).read_text())
+        calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
+                 and getattr(n.func, "id", None) == "GameError"]
+        assert calls and all(len(c.args) == 2 for c in calls), f

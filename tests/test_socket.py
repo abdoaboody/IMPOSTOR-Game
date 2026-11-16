@@ -126,3 +126,18 @@ def test_impostor_disconnect_returns_everyone_to_lobby(env, monkeypatch):
     got = [e for e in others[0].get_received() if e["name"] == "impostor_lost"]
     assert got and got[0]["args"][0]["name"] == imp_name
     assert room.phase == "lobby" and room.impostor_pid is None
+
+
+def test_italian_payloads(env):
+    app, code, cs = setup_room(env, 3)
+    bad = cs[1].emit("start_game", callback=True)
+    assert not bad["ok"] and bad["error_it"] and bad["error_it"] != bad["error"]
+    assert cs[0].emit("start_game", callback=True)["ok"]
+    r = cs[0].emit("request_role", callback=True)
+    assert r["job_it"] and r["job_it"] != r["job"]
+    for c in cs:
+        c.emit("seen", callback=True)
+    q = cs[0].emit("question", callback=True)
+    assert q["question_it"].endswith("?")
+    notes = [e for e in cs[0].get_received() if e["name"] == "notice"]
+    assert all("key" in e["args"][0] for e in notes)

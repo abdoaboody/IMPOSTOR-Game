@@ -23,7 +23,7 @@ class RoomManager:
 
     def _bind(self, room, player, sid):
         if sid in self.sids:
-            raise GameError("أنت داخل غرفة بالفعل.")
+            raise GameError("أنت داخل غرفة بالفعل.", "Sei già in una stanza.")
         self.sids[sid] = (room.code, player.pid)
 
     def create_room(self, name, max_players, sid):
@@ -32,7 +32,7 @@ class RoomManager:
             try:
                 max_players = int(max_players)
             except (TypeError, ValueError):
-                raise GameError("عدد اللاعبين غير صالح.")
+                raise GameError("عدد اللاعبين غير صالح.", "Numero di giocatori non valido.")
             room = Room(self._new_code(), max_players, professions=self.professions)
             player = room.add_player(name, sid)
             self._bind(room, player, sid)
@@ -42,7 +42,7 @@ class RoomManager:
     def _room(self, code):
         room = self.rooms.get(str(code or "").strip().upper())
         if not room:
-            raise GameError("الغرفة غير موجودة. تحقق من الرمز.")
+            raise GameError("الغرفة غير موجودة. تحقق من الرمز.", "La stanza non esiste. Controlla il codice.")
         return room
 
     def join(self, code, name, sid):
@@ -71,7 +71,7 @@ class RoomManager:
             code, pid = self.sids.get(sid, (None, None))
             room = self.rooms.get(code)
             if not room or pid not in room.players:
-                raise GameError("الجلسة غير صالحة. حدّث الصفحة.")
+                raise GameError("الجلسة غير صالحة. حدّث الصفحة.", "Sessione non valida. Ricarica la pagina.")
             return room, room.players[pid]
 
     def disconnect(self, sid):

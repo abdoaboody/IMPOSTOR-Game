@@ -4,6 +4,8 @@ import os
 from flask import request
 from flask_socketio import join_room as sio_join, leave_room as sio_leave
 
+from content import QUESTIONS
+from content_it import HINTS_IT, QUESTIONS_IT, WORDS_IT
 from game_logic import ACTIVE_PHASES, GameError
 
 # Seconds the game waits for a disconnected impostor before everyone returns to the lobby.
@@ -17,8 +19,9 @@ def register(socketio, mgr):
             if p.sid:
                 socketio.emit("state", room.view(p.pid), to=p.sid)
 
-    def notice(room, text, kind="info"):
-        socketio.emit("notice", {"text": text, "kind": kind}, to=room.code)
+    def notice(room, key, name, text, kind="info"):
+        """`key` + `name` let the client show the notice in the player's own language."""
+        socketio.emit("notice", {"key": key, "name": name, "text": text, "kind": kind}, to=room.code)
 
     def safe(fn):
         def wrapper(data=None):
@@ -27,7 +30,7 @@ def register(socketio, mgr):
                 try:
                     return fn(data)
                 except GameError as e:
-                    return {"ok": False, "error": str(e)}
+                    return {"ok": False, "error": str(e), "error_it": e.it}
         return wrapper
 
     # ------------------------------------------------ impostor-loss watchdog
@@ -60,7 +63,7 @@ def register(socketio, mgr):
     def join(data):
         room, p = mgr.join(data.get("code"), data.get("name"), request.sid)
         sio_join(room.code)
-        notice(room, f"انضم {p.name} إلى الغرفة", "good")
+        notice(room, "joined", p.name, f"انضم {p.name} إلى الغرفة", "good")
         broadcast(room)
         return {"ok": True, "code": room.code, "token": p.token}
 
@@ -69,7 +72,7 @@ def register(socketio, mgr):
     def rejoin(data):
         room, p = mgr.rejoin(data.get("code"), data.get("token"), request.sid)
         sio_join(room.code)
-        notice(room, f"عاد {p.name} إلى الاتصال", "good")
+        notice(room, "back", p.name, f"عاد {p.name} إلى الاتصال", "good")
         broadcast(room)
         return {"ok": True}
 
@@ -79,7 +82,7 @@ def register(socketio, mgr):
             res = mgr.disconnect(request.sid)
             if res:
                 room, p = res
-                notice(room, f"انقطع اتصال {p.name}", "warn")
+                notice(room, "dropped", p.name, f"انقطع اتصال {p.name}", "warn")
                 broadcast(room)
                 maybe_watch(room, p)
 
@@ -90,7 +93,7 @@ def register(socketio, mgr):
         sio_leave(room.code)
         room = mgr.leave(request.sid)
         if room:
-            notice(room, f"غادر {p.name} الغرفة", "warn")
+            notice(room, "left", p.name, f"غادر {p.name} الغرفة", "warn")
             broadcast(room)
             maybe_watch(room, p)
         return {"ok": True}
@@ -104,7 +107,7 @@ def register(socketio, mgr):
             mgr.sids.pop(target.sid, None)
             socketio.emit("kicked", {}, to=target.sid)
             sio_leave(room.code, sid=target.sid)
-        notice(room, f"أخرج المضيف {target.name} من الغرفة", "warn")
+        notice(room, "kicked", target.name, f"أخرج المضيف {target.name} من الغرفة", "warn")
         broadcast(room)
         return {"ok": True}
 
@@ -137,10 +140,13 @@ def register(socketio, mgr):
         room, p = mgr.lookup(request.sid)
         r = room.role_for(p.pid)                            # ack goes only to the caller
         return {"ok": True, "job": r["word"], "impostor": r["impostor"], "hint": r["hint"],
+                "job_it": WORDS_IT.get(r["word"]), "hint_it": HINTS_IT.get(r["hint"]),
                 "category": room.category}
 
     @socketio.on("question")
     @safe
     def question(data):
         room, p = mgr.lookup(request.sid)
-        return {"ok": True, "question": room.next_question(p.pid)}
+        q = room.next_question(p.pid)
+        q_it = QUESTIONS_IT[room.category][QUESTIONS[room.category].index(q)]
+        return {"ok": True, "question": q, "question_it": q_it}

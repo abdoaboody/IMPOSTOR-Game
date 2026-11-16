@@ -6,6 +6,7 @@ import uuid
 from dataclasses import dataclass
 
 from content import CATEGORIES, FOOD, QUESTIONS, RANDOM_THINGS
+from content_it import WORDS_IT
 from professions import PROFESSIONS
 
 MIN_PLAYERS = 3
@@ -17,7 +18,11 @@ MODES = ("decoy", "blind")     # decoy: impostor gets a different word; blind: i
 
 
 class GameError(Exception):
-    """User-facing error (message is Arabic and safe to send to the client)."""
+    """User-facing error. Carries the Arabic message (str(e)) and its Italian translation (e.it)."""
+
+    def __init__(self, msg, it=None):
+        super().__init__(msg)
+        self.it = it or msg
 
 
 @dataclass
@@ -37,7 +42,7 @@ class Player:
 class Room:
     def __init__(self, code, max_players, rng=None, professions=None):
         if not MIN_PLAYERS <= max_players <= MAX_PLAYERS_LIMIT:
-            raise GameError(f"عدد اللاعبين يجب أن يكون بين {MIN_PLAYERS} و {MAX_PLAYERS_LIMIT}.")
+            raise GameError(f"عدد اللاعبين يجب أن يكون بين {MIN_PLAYERS} و {MAX_PLAYERS_LIMIT}.", f"Il numero di giocatori deve essere tra {MIN_PLAYERS} e {MAX_PLAYERS_LIMIT}.")
         self.code = code
         self.max_players = max_players
         self.rng = rng or random.SystemRandom()
@@ -67,30 +72,30 @@ class Room:
 
     def _require_host(self, pid):
         if pid != self.host_pid:
-            raise GameError("هذا الإجراء للمضيف فقط.")
+            raise GameError("هذا الإجراء للمضيف فقط.", "Questa azione è riservata all'host.")
 
     def _require_phase(self, *phases):
         if self.phase not in phases:
-            raise GameError("هذا الإجراء غير متاح في المرحلة الحالية.")
+            raise GameError("هذا الإجراء غير متاح في المرحلة الحالية.", "Questa azione non è disponibile in questa fase.")
 
     @staticmethod
     def clean_name(name):
         name = " ".join(str(name or "").split())
         if not name:
-            raise GameError("الرجاء إدخال اسم.")
+            raise GameError("الرجاء إدخال اسم.", "Inserisci un nome.")
         if len(name) > MAX_NAME_LEN:
-            raise GameError(f"الاسم طويل جداً (الحد {MAX_NAME_LEN} حرفاً).")
+            raise GameError(f"الاسم طويل جداً (الحد {MAX_NAME_LEN} حرفاً).", f"Il nome è troppo lungo (massimo {MAX_NAME_LEN} caratteri).")
         return name
 
     # ---------------------------------------------------------------- players
     def add_player(self, name, sid=None):
         if self.phase != "lobby":
-            raise GameError("اللعبة بدأت بالفعل ولا يمكن الانضمام الآن.")
+            raise GameError("اللعبة بدأت بالفعل ولا يمكن الانضمام الآن.", "La partita è già iniziata, non puoi entrare ora.")
         name = self.clean_name(name)
         if len(self.players) >= self.max_players:
-            raise GameError("الغرفة ممتلئة.")
+            raise GameError("الغرفة ممتلئة.", "La stanza è piena.")
         if any(p.name.casefold() == name.casefold() for p in self.players.values()):
-            raise GameError("هذا الاسم مستخدم في الغرفة، اختر اسماً آخر.")
+            raise GameError("هذا الاسم مستخدم في الغرفة، اختر اسماً آخر.", "Questo nome è già usato nella stanza, scegline un altro.")
         p = Player(pid=uuid.uuid4().hex[:8], name=name, token=secrets.token_urlsafe(24), sid=sid)
         self.players[p.pid] = p
         if self.host_pid is None:
@@ -104,7 +109,7 @@ class Room:
                 p.sid, p.connected = sid, True
                 self.touched = time.time()
                 return p
-        raise GameError("تعذّر استعادة جلستك. انضم من جديد.")
+        raise GameError("تعذّر استعادة جلستك. انضم من جديد.", "Impossibile ripristinare la sessione. Entra di nuovo.")
 
     def disconnect(self, pid):
         p = self.players.get(pid)
@@ -136,10 +141,10 @@ class Room:
         self._require_host(actor)
         self._require_phase("lobby")
         if target == actor:
-            raise GameError("لا يمكنك إخراج نفسك.")
+            raise GameError("لا يمكنك إخراج نفسك.", "Non puoi espellere te stesso.")
         p = self.players.pop(target, None)
         if not p:
-            raise GameError("اللاعب غير موجود.")
+            raise GameError("اللاعب غير موجود.", "Giocatore non trovato.")
         self.touched = time.time()
         return p
 
@@ -148,11 +153,11 @@ class Room:
         self._require_phase("lobby")
         if category is not None:
             if category not in CATEGORIES:
-                raise GameError("قسم غير صالح.")
+                raise GameError("قسم غير صالح.", "Categoria non valida.")
             self.category = category
         if mode is not None:
             if mode not in MODES:
-                raise GameError("نوع لعب غير صالح.")
+                raise GameError("نوع لعب غير صالح.", "Modalità di gioco non valida.")
             self.mode = mode
         if hints is not None:
             self.hints = bool(hints)
@@ -196,7 +201,7 @@ class Room:
     def _begin_round(self):
         self._drop_absent()                  # drop absent players between rounds
         if len(self.players) < MIN_PLAYERS:
-            raise GameError(f"يلزم {MIN_PLAYERS} لاعبين متصلين على الأقل.")
+            raise GameError(f"يلزم {MIN_PLAYERS} لاعبين متصلين على الأقل.", f"Servono almeno {MIN_PLAYERS} giocatori in linea.")
         self._reset_round()
         hint = None
         if self.category == "food":
@@ -244,25 +249,25 @@ class Room:
         self._require_host(actor)
         self._require_phase("discussion")
         if not self.all_ready():
-            raise GameError("ليس كل اللاعبين جاهزين بعد.")
+            raise GameError("ليس كل اللاعبين جاهزين بعد.", "Non tutti i giocatori sono ancora pronti.")
         self.phase = "voting"
 
     def cast_vote(self, pid, target):
         self._require_phase("voting")
         if target not in self.players:
-            raise GameError("اللاعب غير موجود.")
+            raise GameError("اللاعب غير موجود.", "Giocatore non trovato.")
         if target == pid:
-            raise GameError("لا يمكنك التصويت لنفسك.")
+            raise GameError("لا يمكنك التصويت لنفسك.", "Non puoi votare per te stesso.")
         me = self.players[pid]
         if me.vote is not None:
-            raise GameError("لقد صوّتّ بالفعل.")
+            raise GameError("لقد صوّتّ بالفعل.", "Hai già votato.")
         me.vote = target
 
     def close_voting(self, actor):
         self._require_host(actor)
         self._require_phase("voting")
         if not self.all_voted():
-            raise GameError("لم يصوّت جميع اللاعبين بعد.")
+            raise GameError("لم يصوّت جميع اللاعبين بعد.", "Non tutti i giocatori hanno ancora votato.")
         counts = {pid: 0 for pid in self.players}
         for p in self.players.values():
             if p.vote in counts:
@@ -281,7 +286,7 @@ class Room:
         self._require_host(actor)
         self._require_phase("tally")
         if self.outcome != "tie":
-            raise GameError("لا يوجد تعادل.")
+            raise GameError("لا يوجد تعادل.", "Non c'è nessun pareggio.")
         for p in self.players.values():
             p.vote, p.ready = None, False      # nothing carries over
         self.tally, self.outcome = {}, None
@@ -292,7 +297,7 @@ class Room:
         self._require_host(actor)
         self._require_phase("tally")
         if self.outcome != "suspect":
-            raise GameError("لا يمكن الكشف قبل تحديد مشتبه به.")
+            raise GameError("لا يمكن الكشف قبل تحديد مشتبه به.", "Non si può rivelare prima di avere un sospettato.")
         self.phase = "final"
 
     def new_round(self, actor):
@@ -345,5 +350,6 @@ class Room:
                 "correct": self.suspect_pid == self.impostor_pid,
                 "tally": self.tally,
                 "category": self.category, "mode": self.mode,
+                "main_job_it": WORDS_IT.get(self.main_job), "impostor_job_it": WORDS_IT.get(self.impostor_job),
             }
         return v
