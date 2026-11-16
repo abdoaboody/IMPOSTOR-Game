@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>المحتال — لعبة جماعية</title>
+<link rel="stylesheet" href="/static/css/fonts.css">
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/icon.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon.png') }}">
+<meta name="theme-color" content="#0A1E24">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="المحتال">
+</head>
+<body class="home" data-i18n-title="title_home">
+<main class="wrap narrow">
+  <div class="toprow">
+    <span class="badge-live" data-i18n="hero_badge">لعبة جماعية بالوقت الحقيقي</span>
+    <button id="langbtn" class="langbtn" type="button" data-testid="language-toggle-btn" data-i18n-aria="lang_aria">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.7 2.6 4 5.6 4 9s-1.3 6.4-4 9c-2.7-2.6-4-5.6-4-9s1.3-6.4 4-9z"/></svg>
+      <span data-i18n="lang_btn">Italiano</span>
+    </button>
+  </div>
+
+  <header class="hero">
+    <span class="qmark q1" aria-hidden="true">؟</span>
+    <span class="qmark q2" aria-hidden="true">?</span>
+    <svg class="mascot" viewBox="0 0 220 190" aria-hidden="true" focusable="false">
+      <ellipse cx="110" cy="178" rx="70" ry="11" fill="#04141A" opacity=".75"/>
+      <g class="mascot-float">
+        <path d="M42 176 Q64 130 110 130 Q156 130 178 176 Z" fill="#123440" stroke="#04141A" stroke-width="5" stroke-linejoin="round"/>
+        <circle cx="110" cy="98" r="50" fill="#FFC98F" stroke="#04141A" stroke-width="5"/>
+        <circle cx="74" cy="121" r="7" fill="#FF8F5A" opacity=".55"/>
+        <circle cx="146" cy="121" r="7" fill="#FF8F5A" opacity=".55"/>
+        <path d="M60 88 Q110 72 160 88 Q160 112 110 112 Q60 112 60 88 Z" fill="#FF2A6D" stroke="#04141A" stroke-width="5" stroke-linejoin="round"/>
+        <g class="mascot-eyes">
+          <ellipse cx="88" cy="95" rx="13" ry="10" fill="#fff" stroke="#04141A" stroke-width="4"/>
+          <ellipse cx="132" cy="95" rx="13" ry="10" fill="#fff" stroke="#04141A" stroke-width="4"/>
+          <circle cx="88" cy="96" r="4.5" fill="#04141A"/>
+          <circle cx="132" cy="96" r="4.5" fill="#04141A"/>
+        </g>
+        <path d="M95 128 Q110 139 125 128" fill="none" stroke="#04141A" stroke-width="5" stroke-linecap="round"/>
+        <path d="M66 58 Q66 16 110 16 Q154 16 154 58 Z" fill="#08262E" stroke="#04141A" stroke-width="5" stroke-linejoin="round"/>
+        <rect x="70" y="30" width="80" height="13" rx="4" fill="#FF2A6D" stroke="#04141A" stroke-width="3"/>
+        <ellipse cx="110" cy="60" rx="64" ry="15" fill="#08262E" stroke="#04141A" stroke-width="5"/>
+      </g>
+    </svg>
+    <h1 class="title" data-i18n="game_name">المحتال</h1>
+    <p class="tagline" data-i18n="tagline">الكل يحمل نفس المهنة… إلا واحداً. ناقشوا، اسألوا، وكشفوه قبل أن يكشفكم.</p>
+  </header>
+
+  <section class="card" id="tabs">
+    <div class="seg" role="tablist">
+      <button class="on" data-tab="create" role="tab" data-testid="tab-create-room" data-i18n="tab_create">إنشاء غرفة</button>
+      <button data-tab="join" role="tab" data-testid="tab-join-room" data-i18n="tab_join">الانضمام لغرفة</button>
+    </div>
+
+    <div id="create" class="pane">
+<<<<<<< HEAD
+      <label>اسمك<input id="c-name" maxlength="16" autocomplete="nickname" placeholder="مثلاً: جو"></label>
+      <label>الحد الأقصى للاعبين <output id="c-out">6</output>
+        <input id="c-max" type="range" min="3" max="20" value="6"></label>
+      <button class="btn primary" id="c-go">أنشئ الغرفة</button>
+=======
+      <label><span data-i18n="label_name">اسمك</span><input id="c-name" maxlength="16" autocomplete="nickname" placeholder="مثلاً: جو" data-i18n-ph="ph_name_create" data-testid="create-name-input"></label>
+      <label><span data-i18n="label_max">الحد الأقصى للاعبين</span> <output id="c-out">6</output>
+        <input id="c-max" type="range" min="3" max="20" value="6" data-testid="max-players-range"></label>
+      <button class="btn primary" id="c-go" data-testid="submit-room-btn" data-i18n="btn_create">أنشئ الغرفة</button>
+>>>>>>> 5a91812 ( Nuovo Design)
+    </div>
+
+    <div id="join" class="pane" hidden>
+      <label><span data-i18n="label_code">رمز الغرفة</span><input id="j-code" class="code-in" maxlength="8" autocapitalize="characters" dir="ltr" placeholder="ABCDE" data-testid="room-code-input"></label>
+      <label><span data-i18n="label_name">اسمك</span><input id="j-name" maxlength="16" autocomplete="nickname" placeholder="مثلاً: سارة" data-i18n-ph="ph_name_join" data-testid="join-name-input"></label>
+      <button class="btn primary" id="j-go" data-testid="submit-join-btn" data-i18n="btn_join">انضم</button>
+    </div>
+    <p class="err" id="err" role="alert" data-testid="home-error"></p>
+  </section>
+</main>
+
+<footer class="credit" data-testid="created-by-footer-card">
+  <button class="credit-toggle" type="button" aria-expanded="false" aria-controls="credit-body" data-testid="credit-toggle-btn" data-i18n-aria="credit_aria">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.108-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+  </button>
+  <div id="credit-body" class="credit-body" hidden>
+    <span class="credit-badge">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+      <span data-i18n="credit_made">صُنعت هذه اللعبة بواسطة</span>
+    </span>
+    <div class="credit-names">
+      <span class="credit-pill p-aboody">Aboody</span>
+    </div>
+    <a class="credit-gh" href="https://github.com/abdoaboody" target="_blank" rel="noopener noreferrer" data-testid="github-link">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.108-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      <span data-i18n="credit_github">مشروعنا على GitHub</span>
+    </a>
+  </div>
+</footer>
+
+<div id="toasts" aria-live="polite" data-testid="toast-container"></div>
+<script src="/static/js/socket.io.min.js"></script>
+<script src="/static/js/i18n.js"></script>
+<script src="/static/js/main.js"></script>
+<script>
+document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b));
+  $('#create').hidden = b.dataset.tab !== 'create';
+  $('#join').hidden = b.dataset.tab !== 'join';
+  $('#err').textContent = '';
+});
+$('#c-max').oninput = e => $('#c-out').textContent = e.target.value;
+$('#langbtn').addEventListener('click', () => I18N.toggle());
+const pre = new URLSearchParams(location.search).get('code');
+if (pre) { $('#j-code').value = pre.toUpperCase(); document.querySelector('[data-tab=join]').click(); }
+
+async function go(ev, data, btn) {
+  btn.disabled = true; $('#err').textContent = '';
+  const r = await emit(ev, data);
+  if (!r.ok) { $('#err').textContent = r.error; btn.disabled = false; return; }
+  store.set(r.code, r.token);
+  location.href = '/room/' + r.code;
+}
+$('#c-go').onclick = e => go('create', {name: $('#c-name').value, max_players: $('#c-max').value}, e.target);
+$('#j-go').onclick = e => go('join', {code: $('#j-code').value, name: $('#j-name').value}, e.target);
+</script>
+</body>
+</html>
